@@ -46,7 +46,6 @@ def hash_to_curve_try_and_increment(y, alpha):
 		CTR = chr((ctr >> 24)%256) + chr((ctr>>16) % 256) + chr((ctr>>8) % 256) + chr(ctr % 256) # big endian
 		ctr += 1
 		attempted_hash = H(SUITE + one + pk + alpha + CTR)[0:32]
-		print("hashing", (SUITE + one + pk + alpha + CTR))
 		try:
 			h = os2ecp(attempted_hash)
 			h = scalarmult(h, 8)
