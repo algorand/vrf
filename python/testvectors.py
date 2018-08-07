@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 # Generate some VRF test vectors of the form:
-# {sk, pk, proof, hash, msg}
+# {seed, pk, proof, hash, msg}
 
 import vrf
 import os

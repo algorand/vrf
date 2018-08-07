@@ -21,24 +21,24 @@ func init(){
 
 type (
 	VrfProof [80]uint8
-	VrfHash [32]uint8
+	VrfOutput [32]uint8
 	VrfPubkey [32]uint8
-	VrfPrivkey [32]uint8
+	VrfPrivkey [64]uint8
 )
 
 // Note: Go arrays are copied by value, so any call to VrfProve makes a copy of the secret key that lingers in memory. Do we want to have secret keys live in the C heap and instead pass pointers to them, e.g., allocate a privkey with sodium_malloc and have VrfPrivkey be of type unsafe.Pointer?
 
 func VrfKeygen() (pub VrfPubkey, priv VrfPrivkey) {
-	C.crypto_vrf_keypair((*C.uchar)(&pub[0]), (*C.uchar)(&priv[0]))
+	C.crypto_vrf_keygen((*C.uchar)(&pub[0]), (*C.uchar)(&priv[0]))
 	return pub, priv
 }
 
 func (sk VrfPrivkey) Prove(msg []byte) (proof VrfProof, ok bool) {
 	ret := C.crypto_vrf_prove((*C.uchar)(&proof[0]), (*C.uchar)(&sk[0]), (*C.uchar)(&msg[0]), (C.ulonglong)(len(msg)))
-	return proof, ret == 0
+	return proof, ret == 1
 }
 
-func (proof VrfProof) Hash() (hash VrfHash, ok bool) {
+func (proof VrfProof) Hash() (hash VrfOutput, ok bool) {
 	ret := C.crypto_vrf_proof2hash((*C.uchar)(&hash[0]), (*C.uchar)(&proof[0]))
 	return hash, ret == 1
 }
@@ -107,7 +107,7 @@ func main(){
 		if !ok {
 			panic("proof.Hash failed??")
 		}
-		fmt.Printf("Hash is %x\n", hash)
+		fmt.Printf("Output is %x\n", hash)
 	default:
 		fmt.Printf("Usage:\n\t%[1]s keygen {file}\n\t%[1]s prove {msg}\n\t%[1]s verify {proof} {msg}\n", os.Args[0])
 	}

@@ -3,7 +3,7 @@
 #
 from ed25519 import *
 
-SUITE = chr(0x02) # try-and-increment
+SUITE = chr(0x03) # try-and-increment
 
 def os2ecp(s):
 	y = sum(2**i * bit(s,i) for i in range(0,b-1))
@@ -53,6 +53,26 @@ def hash_to_curve_try_and_increment(y, alpha):
 			h = "invalid"
 	return h
 
+def hash_to_curve_elligator2(y, alpha):
+	A = 486662
+	pk = ec2osp(y)
+	one = chr(0x01)
+	hash_ = H(SUITE + one + pk + alpha)
+	r = hash_[0:32]
+	x_0 = (ord(r[31]) >> 7) & 1 # deviating from spec by using the highest bit of r[31] instead of the lowest bit of r[32]
+	r_as_int_with_highest_bit_cleared = (decodeint(r) & ((1 << 255) - 1))
+	u = (-A * inv(1 + 2*expmod(r_as_int_with_highest_bit_cleared, 2, q))) % q
+	v = (u * (u*u + A*u + 1)) % q
+	e = expmod(v, (q-1)/2, q)
+	finalu = u if e == 1 else (- A - u) % q
+	y = ((finalu - 1) * inv(finalu + 1)) % q
+	x = xrecover(y)
+	if x & 1 != x_0: x = q-x
+	h = [x,y]
+	assert isoncurve(h)
+	h8 = scalarmult(h, 8)
+	return h8
+
 def vrf_verify(y, pi, alpha):
 	gamma, c, s = decode_proof(pi)
 	gs = scalarmult(B,s)
@@ -60,7 +80,8 @@ def vrf_verify(y, pi, alpha):
 	ycinv = [q-yc[0], yc[1]]
 	u = edwards(gs, ycinv)
 
-	h = hash_to_curve_try_and_increment(y, alpha)
+	#h = hash_to_curve_try_and_increment(y, alpha)
+	h = hash_to_curve_elligator2(y, alpha)
 	hs = scalarmult(h,s)
 	gammac = scalarmult(gamma,c)
 	gammacinv = [q-gammac[0], gammac[1]]
@@ -81,7 +102,8 @@ def nonce_generation(sk, h1):
 
 def vrf_prove(sk, alpha):
 	x, y = sk_to_privpub(sk)
-	h = hash_to_curve_try_and_increment(y, alpha)
+	#h = hash_to_curve_try_and_increment(y, alpha)
+	h = hash_to_curve_elligator2(y, alpha)
 	gamma = scalarmult(h, x)
 	k = nonce_generation(sk, ec2osp(h))
 	c = hash_points(h, gamma, scalarmult(B,k), scalarmult(h,k))
