@@ -36,11 +36,21 @@ func BenchmarkProve(b *testing.B) {
 }
 
 func BenchmarkVerify(b *testing.B) {
-	for i := 0; i < b.N-1; i++ {
+	for i := 0; i < b.N; i++ {
 
 		ok := pk.Verify([]byte(msg), proof)
 		if !ok {
 			panic("verify failed")
 		}
+	}
+}
+
+func BenchmarkProof2Hash(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		hash, ok := proof.Hash()
+		if !ok {
+			panic("proof2hash failed")
+		}
+		_ = hash
 	}
 }

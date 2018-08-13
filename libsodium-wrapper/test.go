@@ -35,17 +35,17 @@ func VrfKeygen() (pub VrfPubkey, priv VrfPrivkey) {
 
 func (sk VrfPrivkey) Prove(msg []byte) (proof VrfProof, ok bool) {
 	ret := C.crypto_vrf_prove((*C.uchar)(&proof[0]), (*C.uchar)(&sk[0]), (*C.uchar)(&msg[0]), (C.ulonglong)(len(msg)))
-	return proof, ret == 1
+	return proof, ret == 0
 }
 
 func (proof VrfProof) Hash() (hash VrfOutput, ok bool) {
 	ret := C.crypto_vrf_proof2hash((*C.uchar)(&hash[0]), (*C.uchar)(&proof[0]))
-	return hash, ret == 1
+	return hash, ret == 0
 }
 
 func (pk VrfPubkey) Verify(msg []byte, proof VrfProof) bool {
 	ret := C.crypto_vrf_verify((*C.uchar)(&pk[0]), (*C.uchar)(&proof[0]), (*C.uchar)(&msg[0]), (C.ulonglong)(len(msg)))
-	return ret == 1
+	return ret == 0
 }
 
 func main(){
