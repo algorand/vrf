@@ -3,7 +3,7 @@
 #
 from ed25519 import *
 
-SUITE = chr(0x03) # try-and-increment
+SUITE = chr(0x04) # ECVRF-ED25519-SHA512-Elligator2
 
 def os2ecp(s):
 	y = sum(2**i * bit(s,i) for i in range(0,b-1))
@@ -58,30 +58,36 @@ def hash_to_curve_elligator2(y, alpha):
 	pk = ec2osp(y)
 	one = chr(0x01)
 	hash_ = H(SUITE + one + pk + alpha)
-	r = hash_[0:32]
-	x_0 = (ord(r[31]) >> 7) & 1 # deviating from spec by using the highest bit of r[31] instead of the lowest bit of r[32]
-	r_as_int_with_highest_bit_cleared = (decodeint(r) & ((1 << 255) - 1))
-	u = (-A * inv(1 + 2*expmod(r_as_int_with_highest_bit_cleared, 2, q))) % q
+	truncated_h_string = hash_[0:32]
+	#x_0 = (ord(r[31]) >> 7) & 1 # deviating from spec by using the highest bit of r[31] instead of the lowest bit of r[32]
+	truncated_h_string = truncated_h_string[0:31] + chr(ord(truncated_h_string[31]) & 127) # clear high-order bit of octet 31
+	r = decodeint(truncated_h_string)
+	u = (-A * inv(1 + 2*expmod(r, 2, q))) % q
 	v = (u * (u*u + A*u + 1)) % q
 	e = expmod(v, (q-1)/2, q)
 	finalu = u if e == 1 else (- A - u) % q
 	y = ((finalu - 1) * inv(finalu + 1)) % q
-	x = xrecover(y)
-	if x & 1 != x_0: x = q-x
-	h = [x,y]
+
+	h_string = encodeint(y)
+	H_prelim = decodepoint(h_string)
+
+	#x = xrecover(y)
+	#if x & 1 != x_0: x = q-x
+	#h = [x,y]
+	h = scalarmult(H_prelim, 8)
 	assert isoncurve(h)
-	h8 = scalarmult(h, 8)
-	return h8
+	return h
 
 def vrf_verify(y, pi, alpha):
 	gamma, c, s = decode_proof(pi)
+	#h = hash_to_curve_try_and_increment(y, alpha)
+	h = hash_to_curve_elligator2(y, alpha)
+
 	gs = scalarmult(B,s)
 	yc = scalarmult(y,c)
 	ycinv = [q-yc[0], yc[1]]
 	u = edwards(gs, ycinv)
 
-	#h = hash_to_curve_try_and_increment(y, alpha)
-	h = hash_to_curve_elligator2(y, alpha)
 	hs = scalarmult(h,s)
 	gammac = scalarmult(gamma,c)
 	gammacinv = [q-gammac[0], gammac[1]]
@@ -112,7 +118,7 @@ def vrf_prove(sk, alpha):
 
 def vrf_proof2hash(pi):
 	gamma = decode_proof(pi)[0]
-	return H(SUITE + chr(0x03) + ec2osp(scalarmult(gamma, 8)))[0:32]
+	return H(SUITE + chr(0x03) + ec2osp(scalarmult(gamma, 8)))
 
 def vrf_fullverify(pk, pi, alpha):
 	y = validate_pk(pk)
