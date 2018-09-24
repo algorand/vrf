@@ -7,8 +7,8 @@ import (
 	"encoding/hex"
 )
 
-// #cgo CFLAGS: -I/home/adam/src/libsodium-fork/src/libsodium/include
-// #cgo LDFLAGS: -L${SRCDIR}/libs -lsodium
+// #cgo CFLAGS: -I/tmp/include
+// #cgo LDFLAGS: -L /tmp/lib -lsodium
 // #include <sodium.h>
 import "C"
 
@@ -21,7 +21,7 @@ func init(){
 
 type (
 	VrfProof [80]uint8
-	VrfOutput [32]uint8
+	VrfOutput [64]uint8
 	VrfPubkey [32]uint8
 	VrfPrivkey [64]uint8
 )
@@ -29,7 +29,7 @@ type (
 // Note: Go arrays are copied by value, so any call to VrfProve makes a copy of the secret key that lingers in memory. Do we want to have secret keys live in the C heap and instead pass pointers to them, e.g., allocate a privkey with sodium_malloc and have VrfPrivkey be of type unsafe.Pointer?
 
 func VrfKeygen() (pub VrfPubkey, priv VrfPrivkey) {
-	C.crypto_vrf_keygen((*C.uchar)(&pub[0]), (*C.uchar)(&priv[0]))
+	C.crypto_vrf_keypair((*C.uchar)(&pub[0]), (*C.uchar)(&priv[0]))
 	return pub, priv
 }
 
@@ -39,13 +39,14 @@ func (sk VrfPrivkey) Prove(msg []byte) (proof VrfProof, ok bool) {
 }
 
 func (proof VrfProof) Hash() (hash VrfOutput, ok bool) {
-	ret := C.crypto_vrf_proof2hash((*C.uchar)(&hash[0]), (*C.uchar)(&proof[0]))
+	ret := C.crypto_vrf_proof_to_hash((*C.uchar)(&hash[0]), (*C.uchar)(&proof[0]))
 	return hash, ret == 0
 }
 
-func (pk VrfPubkey) Verify(msg []byte, proof VrfProof) bool {
-	ret := C.crypto_vrf_verify((*C.uchar)(&pk[0]), (*C.uchar)(&proof[0]), (*C.uchar)(&msg[0]), (C.ulonglong)(len(msg)))
-	return ret == 0
+func (pk VrfPubkey) Verify(msg []byte, proof VrfProof) (bool, VrfOutput) {
+	var out VrfOutput
+	ret := C.crypto_vrf_verify((*C.uchar)(&out[0]), (*C.uchar)(&pk[0]), (*C.uchar)(&proof[0]), (*C.uchar)(&msg[0]), (C.ulonglong)(len(msg)))
+	return ret == 0, out
 }
 
 func main(){
@@ -71,6 +72,9 @@ func main(){
 		if err != nil {
 			panic(err)
 		}
+		if privhex[len(privhex)-1] == '\n' {
+			privhex = privhex[:len(privhex)-1]
+		}
 		n, err := hex.Decode(priv[:], privhex)
 		if err != nil || n != len(priv[:]) {
 			panic("hex decode of privkey failed")
@@ -87,6 +91,9 @@ func main(){
 		if err != nil {
 			panic(err)
 		}
+		if pubhex[len(pubhex)-1] == '\n' {
+			pubhex = pubhex[:len(pubhex)-1]
+		}
 		n, err := hex.Decode(pub[:], pubhex)
 		if err != nil || n != len(pub[:]) {
 			panic("hex decode of pubkey failed")
@@ -98,15 +105,11 @@ func main(){
 			panic("hex decode of proof failed")
 		}
 
-		ok := pub.Verify([]byte(os.Args[3]), proof)
+		ok, hash := pub.Verify([]byte(os.Args[3]), proof)
 		if !ok {
 			panic("verify failed")
 		}
 		fmt.Printf("Verification succeeded\n")
-		hash, ok := proof.Hash()
-		if !ok {
-			panic("proof.Hash failed??")
-		}
 		fmt.Printf("Output is %x\n", hash)
 	default:
 		fmt.Printf("Usage:\n\t%[1]s keygen {file}\n\t%[1]s prove {msg}\n\t%[1]s verify {proof} {msg}\n", os.Args[0])

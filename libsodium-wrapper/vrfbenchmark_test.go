@@ -38,10 +38,11 @@ func BenchmarkProve(b *testing.B) {
 func BenchmarkVerify(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 
-		ok := pk.Verify([]byte(msg), proof)
+		ok, out := pk.Verify([]byte(msg), proof)
 		if !ok {
 			panic("verify failed")
 		}
+		_ = out
 	}
 }
 
