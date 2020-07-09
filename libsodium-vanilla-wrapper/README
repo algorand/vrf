@@ -1,0 +1,3 @@
+To build test executable:
+`gcc -lsodium main.c vrf.c`
+The test executable reads a testvector from files alpha, beta, pi, pk, and sk. (The length of alpha is hardcoded in main.c.) It checks that the prove and verify functions work as expected on the test vector.
