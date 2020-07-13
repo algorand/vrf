@@ -282,6 +282,7 @@ verify_helper(const unsigned char Y_point[32], const unsigned char pi[80],
 	//ge25519_p1p1   tmp_p1p1_point;
 	//ge25519_cached tmp_cached_point;
 
+	// decode_proof will reject gamma not on the main subgroup -- this differs from libsodium-fork
 	if (decode_proof(Gamma_point, c_scalar, s_scalar, pi) != 0) {
 		return -1;
 	}
@@ -302,14 +303,21 @@ verify_helper(const unsigned char Y_point[32], const unsigned char pi[80],
 	hash_to_curve(H_point, Y_point, alpha, alphalen);
 
 	/* calculate U = s*B - c*Y */
-	// TODO: libsodium docs say the functions don't allow c (or s) to be 0 and that they'll return -1 in that case.
-	// Figure out whether this is actually true. If so, set tmp_point to the base point ourselves when c is 0 (and likewise for tmp2 when s is 0)
+	/* Note: libsodium docs say that crypto_scalarmult_ed25519_noclamp
+	 * expects a point on the main subgroup and a scalar where 0 < scalar < L
+	 * (and likewise for the _base variant); they return -1 otherwise.
+	 * Y and Gamma are both known to be on the main subgroup, but s or c
+	 * could be 0. (s is reduced and c has the top 16 bits clear so neither can be >= L).
+	 * Fortunately, it appears that as of libsodium 1.0.18 the functions do
+	 * correctly give the identity if 0 is passed in for the scalar.
+	 */
 	crypto_scalarmult_ed25519_noclamp(tmp_point, c_scalar, Y_point); /* tmp_point = c*Y */
 	crypto_scalarmult_ed25519_base_noclamp(tmp2_point, s_scalar_reduced); /* tmp2_point = s*B */
 	crypto_core_ed25519_sub(U_point, tmp2_point, tmp_point); /* U = tmp2_point - tmp_point = s*B - c*Y */
 
 	/* calculate V = s*H -  c*Gamma */
-	// TODO: same as above (deal with c and s being 0 if necessary)
+	/* See the comment above for an explanation of the special handling
+	 * when c and s are 0 */
 	crypto_scalarmult_ed25519_noclamp(tmp_point, c_scalar, Gamma_point); /* tmp_point = c*Gamma */
 	crypto_scalarmult_ed25519_noclamp(tmp2_point, s_scalar_reduced, H_point); /* tmp2_point = s*H */
 	crypto_core_ed25519_sub(V_point, tmp2_point, tmp_point); /* V = tmp2_point - tmp_point = s*H - c*Gamma */
